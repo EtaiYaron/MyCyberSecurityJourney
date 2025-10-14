@@ -7,6 +7,7 @@
 #include <mstcpip.h>
 #include <vector> 
 #include <iostream>
+#include <thread>
 
 #pragma comment(lib, "Ws2_32.lib") // Link with Ws2_32.lib 
 
@@ -14,19 +15,6 @@ using namespace std;
 const int MaxPort = 65535;  
 const int MinPort = 1;  
 
-PortScanner::PortScanner(string ip, int startport, int endport) {  
-   if (startport < MinPort || endport < startport || endport > MaxPort)  
-   {  
-       throw invalid_argument("invalid input");  
-   }
-   int result = WSAStartup(MAKEWORD(2, 2), &this->wsaData);
-   if (result != 0) {
-       throw invalid_argument("WSAStartup failed");
-   }
-   this->ip = ip;  
-   this->startport = startport;  
-   this->endport = endport;
-}  
 
 
 PortScanner::PortScanner(string hostname){
@@ -45,11 +33,74 @@ PortScanner::PortScanner(string ip, int num) {
     this->ip = ip;
 }
 
-string PortScanner::ScanPorts() {  
+string PortScanner::ScanPorts(int startport, int endport) { 
+
+    if (startport < MinPort || endport < startport || endport > MaxPort)
+    {
+        throw invalid_argument("invalid input");
+    }
     string res = "";
+
+    DWORD numProcessors = 0;
+    SYSTEM_INFO sysInfo;
+    GetSystemInfo(&sysInfo); 
+    numProcessors = sysInfo.dwNumberOfProcessors;
+    int* ptr;
+    ptr = (int*)malloc(numProcessors * sizeof(int));
+    if (ptr == NULL) {
+        
+        throw invalid_argument("Memory allocation failed!\n");
+    }
+    for (int i = 0; i < numProcessors; i++) {
+        if (i == 0)
+        {
+            ptr[i] = startport;
+        }
+        else if(i != numProcessors -1){
+            ptr[i] = ptr[i - 1] + (static_cast<int>((endport - startport) / numProcessors) * i);
+        }
+    }
+
+    vector<thread> threads;
+    vector<string> thread_results(numProcessors);
+
+    for (int i = 0; i < numProcessors; i++)
+    {
+        threads.emplace_back([this, &thread_results, i, ptr, endport, numProcessors]() {
+            if (i == numProcessors - 1)
+                thread_results[i] = this->ScanPortsInternal(ptr[i], endport);
+            else
+                thread_results[i] = this->ScanPortsInternal(ptr[i], ptr[i + 1]-1);
+            });
+    }
+    for (int i = 0; i < numProcessors; i++)
+    {
+        threads[i].join();
+    }
+    for (string x : thread_results) {
+        res +=  "," + x;
+    }
+
+    free(ptr);
+
+    if (res.empty()) {
+        return "the ports which open are: none";
+    }
+    else {
+        return "the ports which open are:" + res.substr(1);
+    }  
+}
+
+string PortScanner::ScanPortsInternal(int startport, int endport) {
+    if (startport < MinPort || endport < startport || endport > MaxPort)
+    {
+        throw invalid_argument("invalid input");
+    }
+    string res = "";
+
     
     const char* ipadrr = this->ip.c_str();
-    for (size_t i = this->startport; i <= this->endport; i++)
+    for (size_t i = startport; i <= endport; i++)
     {
         SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (clientSocket == INVALID_SOCKET) {
@@ -57,28 +108,65 @@ string PortScanner::ScanPorts() {
         }
         sockaddr_in serverAddr;
         serverAddr.sin_family = AF_INET;
-        serverAddr.sin_port = htons(i); 
-        inet_pton(AF_INET, this->ip.c_str(), &(serverAddr.sin_addr)); 
+        serverAddr.sin_port = htons(i);
+        inet_pton(AF_INET, this->ip.c_str(), &(serverAddr.sin_addr));
         if (connect(clientSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) != SOCKET_ERROR) {
             res += ", " + to_string(i);
         }
         closesocket(clientSocket);
-            
+
     }
-    
-    if (res.empty()) {
-        return "the ports which open are: none";
+    if (res.empty())
+    {
+        return res;
     }
-    else {
-        return "the ports which open are:" + res.substr(1); 
-    }
-    
+    return res.substr(1);
 }
 
 
 vector<string>* PortScanner::ScanPorts(vector<string> popularports) {
-    vector<string>* res = new vector<string>();
+    string res = "";
 
+    DWORD numProcessors = 0;
+    SYSTEM_INFO sysInfo;
+    GetSystemInfo(&sysInfo);
+    numProcessors = sysInfo.dwNumberOfProcessors;
+    vector<vector<string>> dividedports;
+    for (int i = 0; i < numProcessors; i++)
+    {
+        vector<string> v;
+        dividedports.push_back(v);
+    }
+    for (int i = 0; i < popularports.size(); i++)
+    {
+        dividedports[i % numProcessors].push_back(popularports[i]);
+    }
+
+    vector<thread> threads;
+    vector<vector<string>*> thread_results(numProcessors);
+
+    for (int i = 0; i < numProcessors; i++)
+    {
+        threads.emplace_back([this, &thread_results, i, dividedports]() {
+                thread_results[i] = this->ScanPortsInternal(dividedports[i]);
+            });
+    }
+    for (int i = 0; i < numProcessors; i++)
+    {
+        threads[i].join();
+    }
+    vector<string>* v = new vector<string>();
+    for (vector<string>* x : thread_results) {
+        for (string str : *x) {
+            v->push_back(str);
+        }
+    }
+    return v;
+}
+
+vector<string>* PortScanner::ScanPortsInternal(vector<string> popularports) {
+    vector<string>* res = new vector<string>();
+    
     for (string port : popularports) {
         SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (clientSocket == INVALID_SOCKET) {

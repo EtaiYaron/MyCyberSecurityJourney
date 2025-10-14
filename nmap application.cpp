@@ -11,7 +11,7 @@ using namespace std;
 
 int main()
 {
-   
+    
    cout << "Hello, welcome to my port scanner.\n";
    int num = 0;
    do {
@@ -48,12 +48,12 @@ int main()
            PortScanner* p;
            Response<string>* r;
            try {
-               PortScanner* p = new PortScanner(ip, start_port1, end_port1);
+               PortScanner* p = new PortScanner(ip, 0);
                
                try
                {
                    cout << "starting scan ports \n";
-                   r = new Response<string>("", p->ScanPorts());
+                   r = new Response<string>("", p->ScanPorts(start_port1, end_port1));
                    cout << r->getReturnValue();
 
                }
