@@ -24,6 +24,7 @@
     <ProjectGuid>{d4933a5a-fd66-4156-81c8-45fe9605d617}</ProjectGuid>
     <RootNamespace>nmupapplication</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>My CyberSecurity toolbox</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
