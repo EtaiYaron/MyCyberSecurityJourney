@@ -21,7 +21,7 @@
     <ClCompile Include="PortScanner.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="testportscanner.cpp">
+    <ClCompile Include="PersistencyProcess.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -30,6 +30,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Response.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PersistencyProcess.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

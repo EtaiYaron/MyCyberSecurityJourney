@@ -129,10 +129,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="nmap application.cpp" />
+    <ClCompile Include="PersistencyProcess.cpp" />
     <ClCompile Include="PortScanner.cpp" />
-    <ClCompile Include="testportscanner.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="PersistencyProcess.h" />
     <ClInclude Include="PortScanner.h" />
     <ClInclude Include="Response.h" />
   </ItemGroup>

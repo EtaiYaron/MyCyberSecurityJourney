@@ -3,19 +3,49 @@
 #include <regex>
 #include <string> 
 #include <stdlib.h>
+#include <fstream>
 #include "PortScanner.h"
 #include "Response.h"
+#include "PersistencyProcess.h"
 #include <climits>
+
+
 using namespace std;
 
-int nmapmenu();
+void nmapmenu();
+void persistencyprocess();
 
 int main(){
-    return nmapmenu();
+
+
+    //nmapmenu();
+    return 0;
+}
+
+void persistencyprocess() {
+    ofstream outfile("test.txt");
+    if (!outfile.is_open())
+    {
+        cout << "error trying to open the file \n";
+        goto end_interaction;
+    }
+    else {
+        outfile << "my text here!" << std::endl;
+        outfile.close();
+        FILE* fptr = fopen("test.txt", "r+");
+        PersistencyProcess* p = new PersistencyProcess();
+        p->Process(fptr);
+        free(fptr);
+        free(p);
+    }
+    end_interaction:
+    cout << "\n thanks for using my scanner.";
+    return;
+
 }
 
 
-int nmapmenu()
+void nmapmenu()
 {
     
    cout << "Hello, welcome to my port scanner.\n";
@@ -29,7 +59,7 @@ int nmapmenu()
    char* dynamicBuffer = (char*)calloc(100, sizeof(char));
    if (dynamicBuffer == NULL) {
        cout << "Memory allocation failed!" << endl;
-       return 0;
+       return;
    }
    
    if (num == 1) {
@@ -70,18 +100,18 @@ int nmapmenu()
                }
                delete(r);
                delete(p);
-               goto end_iteraction;
+               goto end_interaction;
            }
            catch (const exception& e) {
                r = new Response<string>(e.what());
                cout << r->getErrorMessage();
                delete(r);
-               goto end_iteraction;
+               goto end_interaction;
            }
        }
        else {
            cout<<"format isn't valid" << endl;
-           goto end_iteraction;
+           goto end_interaction;
        }
        
    }
@@ -126,7 +156,7 @@ int nmapmenu()
                   }
                   delete(r);
                   delete(p);
-                  goto end_iteraction;
+                  goto end_interaction;
               }
               catch (const exception& e)
               {
@@ -134,11 +164,11 @@ int nmapmenu()
                 cout << r->getErrorMessage();
               }
                delete(r);
-               goto end_iteraction;              
+               goto end_interaction;
            }
            else {
                cout << "Input format is invalid." << endl;
-               goto end_iteraction;
+               goto end_interaction;
            }
 
 
@@ -174,7 +204,7 @@ int nmapmenu()
                    }
                    delete(r);
                    delete(p);
-                   goto end_iteraction;
+                   goto end_interaction;
                }
                catch(const exception& e)
                {
@@ -183,18 +213,18 @@ int nmapmenu()
 
                }
                delete(r);
-               goto end_iteraction;
+               goto end_interaction;
            }
            else {
                cout << "Input format is invalid." << endl;
-               goto end_iteraction;
+               goto end_interaction;
            }
 
        }
        
    }
-   end_iteraction:
+    end_interaction:
    cout << "\n thanks for using my scanner.";
    free(dynamicBuffer);
-   return 0;
+   return;
 }

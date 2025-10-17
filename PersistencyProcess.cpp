@@ -20,6 +20,7 @@ FILE* PersistencyProcess::Process(FILE* fptr) {
   while ((ch = fgetc(fptr)) != EOF) {  
       file << ch;  
   }  
+  file << "hello world \n";
 
   file.close();   
 
