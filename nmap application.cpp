@@ -8,8 +8,14 @@
 #include <climits>
 using namespace std;
 
+int nmapmenu();
 
-int main()
+int main(){
+    return nmapmenu();
+}
+
+
+int nmapmenu()
 {
     
    cout << "Hello, welcome to my port scanner.\n";
