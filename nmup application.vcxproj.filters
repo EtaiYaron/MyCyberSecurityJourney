@@ -29,7 +29,7 @@
     <ClInclude Include="Response.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="PcapToHttpParser.h">
+    <ClInclude Include="OpenForPersistence.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -6,11 +6,15 @@
 #include "PortScanner.h"
 #include "Response.h"
 #include <climits>
+#include "OpenForPersistence.h"
 using namespace std;
 
 int nmapmenu();
 
 int main(){
+    
+    OpenForPersistence* f = new OpenForPersistence();
+    delete(f);
     return nmapmenu();
 }
 

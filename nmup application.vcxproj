@@ -135,7 +135,7 @@
     <ClCompile Include="PortScanner.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="PcapToHttpParser.h" />
+    <ClInclude Include="OpenForPersistence.h" />
     <ClInclude Include="PortScanner.h" />
     <ClInclude Include="Response.h" />
   </ItemGroup>
