@@ -70,11 +70,13 @@ bool MyLoadLibary::ReadAndValidateHeaders() {
 	}
 
 
+	return true;
 
-end_of_interaction:
+	end_of_interaction:
 	CloseHandle(hFile);
 	throw invalid_argument("validation failed headers is not correct." + '\n');
 	return true;
+
 }
 
 void MyLoadLibary::MapSectionsToMemory() {
