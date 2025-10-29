@@ -13,13 +13,5 @@ public:
 	
 };
 
-FileBuffer::FileBuffer(DWORD size) {
-	this->filebuffer = NULL;
-}
-FileBuffer::FileBuffer(DWORD size) {
-	this->filebuffer = new BYTE[size];
-}
-FileBuffer::~FileBuffer() {
-	delete[](this->filebuffer);
-}
+
 

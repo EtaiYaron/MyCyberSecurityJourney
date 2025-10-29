@@ -131,6 +131,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="FileBuffer.cpp" />
     <ClCompile Include="MyLoadLibary.cpp" />
     <ClCompile Include="nmap application.cpp" />
     <ClCompile Include="PortScanner.cpp" />
