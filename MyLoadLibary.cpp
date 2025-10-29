@@ -6,6 +6,8 @@
 # define minbufsize 62
 # define startIndex 0x3C
 
+using namespace std;
+
 MyLoadLibary::MyLoadLibary(string filename){
 	this->filename = filename;
 }
@@ -15,18 +17,21 @@ HMODULE MyLoadLibary::Load() {
 	return h;
 }
 
+
+
+
 bool MyLoadLibary::ReadAndValidateHeaders() {
 	HANDLE hFile;
 	DWORD dwBytesRead = 0;
 	LPCSTR file_lpcstr = static_cast<LPCSTR>(this->filename.c_str());
 	hFile = CreateFileA(
 		file_lpcstr,
-		GENERIC_READ,          
-		FILE_SHARE_READ,       
-		NULL,                  
-		OPEN_EXISTING,         
-		FILE_ATTRIBUTE_NORMAL, 
-		NULL);                
+		GENERIC_READ,
+		FILE_SHARE_READ,
+		NULL,
+		OPEN_EXISTING,
+		FILE_ATTRIBUTE_NORMAL,
+		NULL);
 
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
@@ -43,13 +48,13 @@ bool MyLoadLibary::ReadAndValidateHeaders() {
 	}
 	this->filesizeinBytes = (DWORD)numofBytes.QuadPart;
 	this->fb = FileBuffer(this->filesizeinBytes);
-	
+
 	if (!ReadFile(hFile, this->fb.filebuffer, this->filesizeinBytes, NULL, NULL)) {
 		CloseHandle(hFile);
 		throw invalid_argument("Terminal failure: " + to_string(GetLastError()) + '\n');
 	}
 
-	if (this->filesizeinBytes < minbufsize || this->fb.filebuffer[0] != 0x4D || this->fb.filebuffer[1] != 0x5A ) {
+	if (this->filesizeinBytes < minbufsize || this->fb.filebuffer[0] != 0x4D || this->fb.filebuffer[1] != 0x5A) {
 		goto end_of_interaction;
 	}
 	else {
@@ -66,18 +71,27 @@ bool MyLoadLibary::ReadAndValidateHeaders() {
 			goto end_of_interaction;
 		}
 
-		WORD filestate = this->fb.filebuffer[e_lfanew + 4] | this->fb.filebuffer[e_lfanew + 5] << 8;
+		this->filestate = this->fb.filebuffer[e_lfanew + 4] | this->fb.filebuffer[e_lfanew + 5] << 8;
+		#ifdef _WIN64
+		if (this->filestate != IMAGE_FILE_MACHINE_AMD64) {
+			goto end_of_interaction;
+		}
+		#else
+		if (this->filestate != IMAGE_FILE_MACHINE_I386) {
+			
+			goto end_of_interaction;
+		}
+		#endif
 	}
 
-
+	CloseHandle(hFile);
 	return true;
 
 	end_of_interaction:
 	CloseHandle(hFile);
 	throw invalid_argument("validation failed headers is not correct." + '\n');
-	return true;
-
 }
+
 
 void MyLoadLibary::MapSectionsToMemory() {
 

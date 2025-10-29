@@ -1,7 +1,8 @@
+#pragma once
 #include <windows.h>
 #include <string>
 #include "FileBuffer.h"
-#pragma once
+
 
 using namespace std;
 
@@ -15,8 +16,8 @@ private:
 	string filename;
 	FileBuffer fb;
 	DWORD filesizeinBytes;
+	WORD filestate;
 	BYTE* pImageBase;
-	PIMAGE_NT_HEADERS pNtHeaders;
 	bool ReadAndValidateHeaders();
 	void MapSectionsToMemory();
 	bool HandleRelocations();     
