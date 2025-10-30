@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <string>
 #include "FileBuffer.h"
+#include "MemoryAlloc.h"
 
 
 using namespace std;
@@ -17,13 +18,17 @@ private:
 	FileBuffer fb;
 	DWORD filesizeinBytes;
 	WORD filestate;
-	BYTE* pImageBase;
+	DWORD e_lfanew;
+	WORD num_of_sections;
+	MemoryAlloc memory_alloc;
 	bool ReadAndValidateHeaders();
 	void MapSectionsToMemory();
 	bool HandleRelocations();     
 	bool ResolveDependencies();
 	bool ExecuteEntryPoint();
 	//const wchar_t* //GetWC(const char*);
+	PIMAGE_SECTION_HEADER  GetSectionTable(PIMAGE_NT_HEADERS);
+
 
 };
 

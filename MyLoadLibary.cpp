@@ -1,6 +1,7 @@
 #include "MyLoadLibary.h"
 #include <stdexcept>  
 #include <memory>
+#include <memory.h>
 #pragma once
 
 # define minbufsize 62
@@ -58,7 +59,7 @@ bool MyLoadLibary::ReadAndValidateHeaders() {
 		goto end_of_interaction;
 	}
 	else {
-		uint32_t e_lfanew = this->fb.filebuffer[startIndex] |
+		this->e_lfanew = this->fb.filebuffer[startIndex] |
 			(this->fb.filebuffer[startIndex + 1] << 8) |
 			(this->fb.filebuffer[startIndex + 2] << 16) |
 			(this->fb.filebuffer[startIndex + 3] << 24);
@@ -82,6 +83,8 @@ bool MyLoadLibary::ReadAndValidateHeaders() {
 			goto end_of_interaction;
 		}
 		#endif
+
+		
 	}
 
 	CloseHandle(hFile);
@@ -92,9 +95,48 @@ bool MyLoadLibary::ReadAndValidateHeaders() {
 	throw invalid_argument("validation failed headers is not correct." + '\n');
 }
 
+PIMAGE_SECTION_HEADER MyLoadLibary::GetSectionTable(PIMAGE_NT_HEADERS pNtHeaders)
+{
+	PIMAGE_SECTION_HEADER pSectionTable = IMAGE_FIRST_SECTION(pNtHeaders);
+
+	return pSectionTable;
+}
 
 void MyLoadLibary::MapSectionsToMemory() {
-
+	this->num_of_sections = this->fb.filebuffer[e_lfanew + 6] | this->fb.filebuffer[e_lfanew + 7] << 8;
+	PIMAGE_NT_HEADERS pNtHeaders = (PIMAGE_NT_HEADERS)((PBYTE)this->fb.filebuffer + this->e_lfanew);
+	PIMAGE_SECTION_HEADER pSectionTable = IMAGE_FIRST_SECTION(pNtHeaders);
+	try {
+		this->memory_alloc = MemoryAlloc(VirtualAlloc((LPVOID)(pNtHeaders->OptionalHeader.ImageBase),
+			pNtHeaders->OptionalHeader.SizeOfImage,
+			MEM_RESERVE,
+			PAGE_READWRITE));
+		for (int i = 0; i < this->num_of_sections; i++)
+		{
+			PIMAGE_SECTION_HEADER pCurrentSection = &pSectionTable[i];
+			BYTE* pDestination = (BYTE*)this->memory_alloc.memory + pCurrentSection->VirtualAddress;
+			BYTE* pSource = (BYTE*)this->fb.filebuffer + pCurrentSection->PointerToRawData;
+			DWORD sizeToCopy = pCurrentSection->SizeOfRawData;
+			LPVOID pCommittedMemory = VirtualAlloc(pDestination,
+				pCurrentSection->Misc.VirtualSize,
+				MEM_COMMIT,
+				PAGE_READWRITE);
+			if (pCommittedMemory == NULL) {
+				throw runtime_error("VirtualAlloc(MEM_COMMIT) failed for a section.");
+			}
+			if (sizeToCopy > 0)
+			{
+				if (memcpy(pDestination, pSource, sizeToCopy) == NULL)
+				{
+					throw invalid_argument("memcpy didn't suceed");
+				}
+			}
+		}
+	}
+	catch (const exception& e)
+	{
+		throw invalid_argument("VirtualAlloc(MEM_RESERVE) failed or was allocated at a different address.");
+	}
 }
 bool MyLoadLibary::HandleRelocations() {
 	return true;
