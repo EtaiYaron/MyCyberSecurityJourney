@@ -22,8 +22,7 @@ private:
 	WORD num_of_sections;
 	MemoryAlloc memory_alloc;
 	bool ReadAndValidateHeaders();
-	void MapSectionsToMemory();
-	bool HandleRelocations();     
+	void MapSectionsToMemory();    
 	bool ResolveDependencies();
 	bool ExecuteEntryPoint();
 	//const wchar_t* //GetWC(const char*);

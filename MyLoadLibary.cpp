@@ -165,7 +165,7 @@ Your Load() function will call these in order.
 
 bool ReadAndValidateHeaders()
 
-Job: Opens the filename, reads the entire file into the pFileBuffer, and then parses that buffer to find and validate the PE headers (IMAGE_NT_HEADERS). It stores the pointer in pNtHeaders. If it's not a valid PE file, this returns false.
+Job: Opens the filename, reads the ent ire file into the pFileBuffer, and then parses that buffer to find and validate the PE headers (IMAGE_NT_HEADERS). It stores the pointer in pNtHeaders. If it's not a valid PE file, this returns false.
 
 void MapSectionsToMemory()
 
