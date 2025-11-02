@@ -111,6 +111,10 @@ void MyLoadLibary::MapSectionsToMemory() {
 			pNtHeaders->OptionalHeader.SizeOfImage,
 			MEM_RESERVE,
 			PAGE_READWRITE));
+		PIMAGE_NT_HEADERS pNtHeaders = (PIMAGE_NT_HEADERS)((PBYTE)this->fb.filebuffer + this->e_lfanew);
+		if ((ULONGLONG)(this->memory_alloc.memory) != pNtHeaders->OptionalHeader.ImageBase) {
+			throw invalid_argument("problem with virtual alloc");
+		}
 		for (int i = 0; i < this->num_of_sections; i++)
 		{
 			PIMAGE_SECTION_HEADER pCurrentSection = &pSectionTable[i];
@@ -137,9 +141,6 @@ void MyLoadLibary::MapSectionsToMemory() {
 	{
 		throw invalid_argument("VirtualAlloc(MEM_RESERVE) failed or was allocated at a different address.");
 	}
-}
-bool MyLoadLibary::HandleRelocations() {
-	return true;
 }
 bool MyLoadLibary::ResolveDependencies() {
 	return true;
@@ -169,10 +170,6 @@ Job: Opens the filename, reads the entire file into the pFileBuffer, and then pa
 void MapSectionsToMemory()
 
 Job: Allocates a block of memory using VirtualAlloc (and stores the pointer in pImageBase). It then loops through the PE file's section headers (using pNtHeaders) and copies each section (like .text, .data) from the pFileBuffer into the correct location in the new pImageBase memory block.
-
-bool HandleRelocations()
-
-Job: Checks if the DLL was loaded at its preferred ImageBase. If not, it must parse the DLL's relocation table (the .reloc section) and "fix" all hardcoded addresses inside the newly mapped code to point to the correct new locations.
 
 bool ResolveDependencies()
 
