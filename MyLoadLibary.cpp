@@ -2,6 +2,7 @@
 #include <stdexcept>  
 #include <memory>
 #include <memory.h>
+#include <vector>
 #pragma once
 
 # define minbufsize 62
@@ -17,9 +18,6 @@ HMODULE MyLoadLibary::Load() {
 	HMODULE h;
 	return h;
 }
-
-
-
 
 bool MyLoadLibary::ReadAndValidateHeaders() {
 	HANDLE hFile;
@@ -71,7 +69,6 @@ bool MyLoadLibary::ReadAndValidateHeaders() {
 		if (this->fb.filebuffer[e_lfanew] != 0x50 || this->fb.filebuffer[e_lfanew + 1] != 0x45 || this->fb.filebuffer[e_lfanew + 2] != 0x00 || this->fb.filebuffer[e_lfanew + 3] != 0x00) {
 			goto end_of_interaction;
 		}
-
 		this->filestate = this->fb.filebuffer[e_lfanew + 4] | this->fb.filebuffer[e_lfanew + 5] << 8;
 		#ifdef _WIN64
 		if (this->filestate != IMAGE_FILE_MACHINE_AMD64) {
@@ -79,12 +76,9 @@ bool MyLoadLibary::ReadAndValidateHeaders() {
 		}
 		#else
 		if (this->filestate != IMAGE_FILE_MACHINE_I386) {
-			
 			goto end_of_interaction;
 		}
 		#endif
-
-		
 	}
 
 	CloseHandle(hFile);
@@ -142,9 +136,51 @@ void MyLoadLibary::MapSectionsToMemory() {
 		throw invalid_argument("VirtualAlloc(MEM_RESERVE) failed or was allocated at a different address.");
 	}
 }
+
+
 bool MyLoadLibary::ResolveDependencies() {
+	PIMAGE_NT_HEADERS pNtHeaders = (PIMAGE_NT_HEADERS)((PBYTE)this->fb.filebuffer + this->e_lfanew);
+	DWORD rva = pNtHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
+	if (rva == 0) {
+		return true;
+	}
+	PIMAGE_IMPORT_DESCRIPTOR pImportDescriptor =
+		(PIMAGE_IMPORT_DESCRIPTOR)((BYTE*)this->memory_alloc.memory + rva);
+	while (pImportDescriptor->Name != 0)
+	{
+		char* dllname = (char*)((BYTE*)this->memory_alloc.memory + pImportDescriptor->Name);
+		HMODULE hModule = LoadLibraryA(dllname);
+		if (hModule == NULL) {
+			throw runtime_error("Failed to load required DLL: " + string(dllname));
+		}
+		PIMAGE_THUNK_DATA pIAT =
+			(PIMAGE_THUNK_DATA)((BYTE*)this->memory_alloc.memory + pImportDescriptor->FirstThunk);
+		while (pIAT->u1.Function != 0)
+		{
+			FARPROC realFunctionAddress;
+			if (IMAGE_SNAP_BY_ORDINAL(pIAT->u1.Ordinal))
+			{
+				DWORD ordinal = IMAGE_ORDINAL(pIAT->u1.Ordinal);
+				realFunctionAddress = GetProcAddress(hModule, (LPCSTR)ordinal);
+			}
+			else
+			{
+				PIMAGE_IMPORT_BY_NAME pImportByName =
+					(PIMAGE_IMPORT_BY_NAME)((BYTE*)this->memory_alloc.memory + pIAT->u1.Function);
+				const char* functionName = pImportByName->Name;
+				realFunctionAddress = GetProcAddress(hModule, functionName);
+			}
+			if (realFunctionAddress == NULL) {
+				throw runtime_error("Failed to get address for imported function.");
+			}
+			pIAT->u1.Function = (ULONGLONG)realFunctionAddress;
+			pIAT++;
+		}
+		pImportDescriptor++;
+	}
 	return true;
 }
+
 bool MyLoadLibary::ExecuteEntryPoint() {
 	return true;
 }
