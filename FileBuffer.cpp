@@ -1,9 +1,7 @@
 #include "FileBuffer.h"
 
 
-FileBuffer::FileBuffer(DWORD size) {
-	this->filebuffer = NULL;
-}
+
 FileBuffer::FileBuffer(DWORD size) {
 	this->filebuffer = new BYTE[size];
 }

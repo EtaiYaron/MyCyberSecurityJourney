@@ -12,8 +12,9 @@ class MyLoadLibary {
 
 public:
 	MyLoadLibary(string);
-	HMODULE Load();
+	bool Load();
 private:
+
 	string filename;
 	FileBuffer fb;
 	DWORD filesizeinBytes;
@@ -21,9 +22,9 @@ private:
 	DWORD e_lfanew;
 	WORD num_of_sections;
 	MemoryAlloc memory_alloc;
-	bool ReadAndValidateHeaders();
+	void ReadAndValidateHeaders();
 	void MapSectionsToMemory();    
-	bool ResolveDependencies();
+	void ResolveDependencies();
 	bool ExecuteEntryPoint();
 	//const wchar_t* //GetWC(const char*);
 	PIMAGE_SECTION_HEADER  GetSectionTable(PIMAGE_NT_HEADERS);

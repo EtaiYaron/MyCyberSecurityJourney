@@ -14,12 +14,22 @@ MyLoadLibary::MyLoadLibary(string filename){
 	this->filename = filename;
 }
 
-HMODULE MyLoadLibary::Load() {
-	HMODULE h;
-	return h;
+bool MyLoadLibary::Load() {
+	try
+	{
+		this->ReadAndValidateHeaders();
+		this->MapSectionsToMemory();
+		this->ResolveDependencies();
+		return this->ExecuteEntryPoint();
+		
+	}
+	catch (const exception& e)
+	{
+		throw invalid_argument(e.what());
+	}
 }
 
-bool MyLoadLibary::ReadAndValidateHeaders() {
+void MyLoadLibary::ReadAndValidateHeaders() {
 	HANDLE hFile;
 	DWORD dwBytesRead = 0;
 	LPCSTR file_lpcstr = static_cast<LPCSTR>(this->filename.c_str());
@@ -82,7 +92,7 @@ bool MyLoadLibary::ReadAndValidateHeaders() {
 	}
 
 	CloseHandle(hFile);
-	return true;
+	return;
 
 	end_of_interaction:
 	CloseHandle(hFile);
@@ -138,11 +148,11 @@ void MyLoadLibary::MapSectionsToMemory() {
 }
 
 
-bool MyLoadLibary::ResolveDependencies() {
+void MyLoadLibary::ResolveDependencies() {
 	PIMAGE_NT_HEADERS pNtHeaders = (PIMAGE_NT_HEADERS)((PBYTE)this->fb.filebuffer + this->e_lfanew);
 	DWORD rva = pNtHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
 	if (rva == 0) {
-		return true;
+		return;
 	}
 	PIMAGE_IMPORT_DESCRIPTOR pImportDescriptor =
 		(PIMAGE_IMPORT_DESCRIPTOR)((BYTE*)this->memory_alloc.memory + rva);
@@ -151,38 +161,56 @@ bool MyLoadLibary::ResolveDependencies() {
 		char* dllname = (char*)((BYTE*)this->memory_alloc.memory + pImportDescriptor->Name);
 		HMODULE hModule = LoadLibraryA(dllname);
 		if (hModule == NULL) {
-			throw runtime_error("Failed to load required DLL: " + string(dllname));
+			goto keep_while;
 		}
-		PIMAGE_THUNK_DATA pIAT =
-			(PIMAGE_THUNK_DATA)((BYTE*)this->memory_alloc.memory + pImportDescriptor->FirstThunk);
-		while (pIAT->u1.Function != 0)
-		{
-			FARPROC realFunctionAddress;
-			if (IMAGE_SNAP_BY_ORDINAL(pIAT->u1.Ordinal))
+		else {
+			PIMAGE_THUNK_DATA pIAT =
+				(PIMAGE_THUNK_DATA)((BYTE*)this->memory_alloc.memory + pImportDescriptor->FirstThunk);
+			while (pIAT->u1.Function != 0)
 			{
-				DWORD ordinal = IMAGE_ORDINAL(pIAT->u1.Ordinal);
-				realFunctionAddress = GetProcAddress(hModule, (LPCSTR)ordinal);
+				FARPROC realFunctionAddress;
+				if (IMAGE_SNAP_BY_ORDINAL(pIAT->u1.Ordinal))
+				{
+					DWORD ordinal = IMAGE_ORDINAL(pIAT->u1.Ordinal);
+					realFunctionAddress = GetProcAddress(hModule, (LPCSTR)ordinal);
+				}
+				else
+				{
+					PIMAGE_IMPORT_BY_NAME pImportByName =
+						(PIMAGE_IMPORT_BY_NAME)((BYTE*)this->memory_alloc.memory + pIAT->u1.Function);
+					const char* functionName = pImportByName->Name;
+					realFunctionAddress = GetProcAddress(hModule, functionName);
+				}
+				if (realFunctionAddress == NULL) {
+					goto keep_while2;
+				}
+				pIAT->u1.Function = (ULONGLONG)realFunctionAddress;
+				keep_while2:
+				pIAT++;
 			}
-			else
-			{
-				PIMAGE_IMPORT_BY_NAME pImportByName =
-					(PIMAGE_IMPORT_BY_NAME)((BYTE*)this->memory_alloc.memory + pIAT->u1.Function);
-				const char* functionName = pImportByName->Name;
-				realFunctionAddress = GetProcAddress(hModule, functionName);
-			}
-			if (realFunctionAddress == NULL) {
-				throw runtime_error("Failed to get address for imported function.");
-			}
-			pIAT->u1.Function = (ULONGLONG)realFunctionAddress;
-			pIAT++;
 		}
+		keep_while:
 		pImportDescriptor++;
 	}
-	return true;
+	return;
 }
 
 bool MyLoadLibary::ExecuteEntryPoint() {
-	return true;
+	PIMAGE_NT_HEADERS pNtHeaders = (PIMAGE_NT_HEADERS)((PBYTE)this->fb.filebuffer + this->e_lfanew);
+	DWORD rva = pNtHeaders->OptionalHeader.AddressOfEntryPoint;
+	if (rva == 0)
+	{
+		return true;
+	}
+	BYTE* pointertoentrypoint = (BYTE*)this->memory_alloc.memory + rva;
+	typedef BOOL(WINAPI* pDllMain)(HMODULE, DWORD, LPVOID);
+	pDllMain entryPointFunction = (pDllMain)pointertoentrypoint;
+	BOOL result = entryPointFunction(
+		(HMODULE)this->memory_alloc.memory,  
+		DLL_PROCESS_ATTACH,                 
+		NULL                                
+	);
+	return result;
 }
 
 /*
@@ -194,28 +222,6 @@ const wchar_t* MyLoadLibary::GetWC(const char* c)
 
 	return wc;
 }
-*/
-
-/*
-Your Load() function will call these in order.
-
-bool ReadAndValidateHeaders()
-
-Job: Opens the filename, reads the ent ire file into the pFileBuffer, and then parses that buffer to find and validate the PE headers (IMAGE_NT_HEADERS). It stores the pointer in pNtHeaders. If it's not a valid PE file, this returns false.
-
-void MapSectionsToMemory()
-
-Job: Allocates a block of memory using VirtualAlloc (and stores the pointer in pImageBase). It then loops through the PE file's section headers (using pNtHeaders) and copies each section (like .text, .data) from the pFileBuffer into the correct location in the new pImageBase memory block.
-
-bool ResolveDependencies()
-
-Job: Parses the DLL's import table. For every other DLL it needs (e.g., kernel32.dll), it calls the real LoadLibraryA. For every function it needs (e.g., CreateFileA), it calls the real GetProcAddress and writes the function's true address into the mapped DLL's Import Address Table (IAT).
-
-bool ExecuteEntryPoint()
-
-Job: This is the final step. It gets the address of the DLL's entry point (DllMain) from the PE headers. It then calls this function, passing it the pImageBase (the HMODULE) and the DLL_PROCESS_ATTACH reason code to let the DLL initialize itself.
-
-Your public Load() function will be responsible for calling these functions one by one and checking for failure at each step.
 */
 
 
