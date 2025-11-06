@@ -13,8 +13,8 @@ using namespace std;
 int nmapmenu();
 
 int main(){
-    //MyLoadLibary* l = new MyLoadLibary("non_existent_plugin.dll");
-    //l->Load();
+    MyLoadLibary* l = new MyLoadLibary("non_existent_plugin.dll");
+    l->Load();
     return 0;
     /*
     OpenForPersistence* f = new OpenForPersistence();

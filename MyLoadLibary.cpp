@@ -3,6 +3,7 @@
 #include <memory>
 #include <memory.h>
 #include <vector>
+#include <iostream>
 #pragma once
 
 # define minbufsize 62
@@ -17,10 +18,16 @@ MyLoadLibary::MyLoadLibary(string filename){
 bool MyLoadLibary::Load() {
 	try
 	{
+		cout << "calling: ReadAndValidateHeaders";
 		this->ReadAndValidateHeaders();
+		cout << "ReadAndValidateHeaders pass";
 		this->MapSectionsToMemory();
+		cout << "MapSectionsToMemory pass";
 		this->ResolveDependencies();
-		return this->ExecuteEntryPoint();
+		cout << "ResolveDependencies pass";
+		bool result = this->ExecuteEntryPoint();
+		cout << "ExecuteEntryPoint pass";
+		return result;
 		
 	}
 	catch (const exception& e)
