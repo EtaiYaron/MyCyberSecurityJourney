@@ -11,13 +11,13 @@
 
 #pragma comment(lib, "Ws2_32.lib") // Link with Ws2_32.lib 
 
-using namespace std;  
-const int MaxPort = 65535;  
-const int MinPort = 1;  
+using namespace std;
+const int MaxPort = 65535;
+const int MinPort = 1;
 
 
 
-PortScanner::PortScanner(string hostname){
+PortScanner::PortScanner(string hostname) {
     int result = WSAStartup(MAKEWORD(2, 2), &this->wsaData);
     if (result != 0) {
         throw invalid_argument("WSAStartup failed");
@@ -33,33 +33,33 @@ PortScanner::PortScanner(string ip, int num) {
     this->ip = ip;
 }
 
-string PortScanner::ScanPorts(int startport, int endport) { 
+string PortScanner::ScanPorts(int startport, int endport) {
 
     if (startport < MinPort || endport < startport || endport > MaxPort)
     {
         throw invalid_argument("invalid input");
     }
     string res = "";
-	vector<string> ports;
+    vector<string> ports;
     for (int i = startport; i <= endport; i++)
     {
         ports.push_back(to_string(i));
     }
-	vector<string>* openports = this->ScanPorts(ports);
+    vector<string>* openports = this->ScanPorts(ports);
     for (string port : *openports) {
         res += ", " + port;
-	}
-	delete(openports);
+    }
+    delete(openports);
     if (res.empty()) {
         return "the ports which open are: none";
     }
     else {
         return "the ports which open are:" + res.substr(1);
-	}
+    }
 
     /*DWORD numProcessors = 0;
     SYSTEM_INFO sysInfo;
-    GetSystemInfo(&sysInfo); 
+    GetSystemInfo(&sysInfo);
     numProcessors = sysInfo.dwNumberOfProcessors;
     int* ptr;
     ptr = (int*)malloc(numProcessors * sizeof(int));
@@ -89,7 +89,7 @@ string PortScanner::ScanPorts(int startport, int endport) {
                 thread_results[i] = this->ScanPortsInternal(ptr[i], ptr[i + 1]-1);
             });
     }
-    
+
     for (int i = 0; i < numProcessors; i++)
     {
         threads[i].join();
@@ -108,37 +108,37 @@ string PortScanner::ScanPorts(int startport, int endport) {
     }  */
 }
 
-string PortScanner::ScanPortsInternal(int startport, int endport) {
-    if (startport < MinPort || endport < startport || endport > MaxPort)
-    {
-        throw invalid_argument("invalid input");
-    }
-    string res = "";
-
-    
-    const char* ipadrr = this->ip.c_str();
-    for (size_t i = startport; i <= endport; i++)
-    {
-        SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if (clientSocket == INVALID_SOCKET) {
-            continue;
-        }
-        sockaddr_in serverAddr;
-        serverAddr.sin_family = AF_INET;
-        serverAddr.sin_port = htons(i);
-        inet_pton(AF_INET, this->ip.c_str(), &(serverAddr.sin_addr));
-        if (connect(clientSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) != SOCKET_ERROR) {
-            res += ", " + to_string(i);
-        }
-        closesocket(clientSocket);
-
-    }
-    if (res.empty())
-    {
-        return res;
-    }
-    return res.substr(1);
-}
+//string PortScanner::ScanPortsInternal(int startport, int endport) {
+//    if (startport < MinPort || endport < startport || endport > MaxPort)
+//    {
+//        throw invalid_argument("invalid input");
+//    }
+//    string res = "";
+//
+//
+//    const char* ipadrr = this->ip.c_str();
+//    for (size_t i = startport; i <= endport; i++)
+//    {
+//        SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+//        if (clientSocket == INVALID_SOCKET) {
+//            continue;
+//        }
+//        sockaddr_in serverAddr;
+//        serverAddr.sin_family = AF_INET;
+//        serverAddr.sin_port = htons(i);
+//        inet_pton(AF_INET, this->ip.c_str(), &(serverAddr.sin_addr));
+//        if (connect(clientSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) != SOCKET_ERROR) {
+//            res += ", " + to_string(i);
+//        }
+//        closesocket(clientSocket);
+//
+//    }
+//    if (res.empty())
+//    {
+//        return res;
+//    }
+//    return res.substr(1);
+//}
 
 
 vector<string>* PortScanner::ScanPorts(vector<string> popularports) {
@@ -165,7 +165,7 @@ vector<string>* PortScanner::ScanPorts(vector<string> popularports) {
     for (int i = 0; i < numProcessors; i++)
     {
         threads.emplace_back([this, &thread_results, i, dividedports]() {
-                thread_results[i] = this->ScanPortsInternal(dividedports[i]);
+            thread_results[i] = this->ScanPortsInternal(dividedports[i]);
             });
     }
     for (int i = 0; i < numProcessors; i++)
@@ -183,7 +183,7 @@ vector<string>* PortScanner::ScanPorts(vector<string> popularports) {
 
 vector<string>* PortScanner::ScanPortsInternal(vector<string> popularports) {
     vector<string>* res = new vector<string>();
-    
+
     for (string port : popularports) {
         SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (clientSocket == INVALID_SOCKET) {
@@ -209,24 +209,24 @@ vector<string>* PortScanner::ScanPortsInternal(vector<string> popularports) {
 string PortScanner::ResolveHosttoIP() {
     struct addrinfo hints, * result;
     memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET; 
-    hints.ai_socktype = SOCK_STREAM; 
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
 
     const char* hostname = this->hostname.c_str();
     int s = getaddrinfo(hostname, NULL, &hints, &result);
     if (s != 0) {
         string output(gai_strerrorA(s));
-        throw invalid_argument("getadrrinfo returned: " + output);           
+        throw invalid_argument("getadrrinfo returned: " + output);
     }
 
     string retval = "";
     int cnt = 1;
     for (struct addrinfo* rp = result; rp != NULL; rp = rp->ai_next) {
-        
+
         char ipstr[INET_ADDRSTRLEN];
         struct sockaddr_in* ipv4 = (struct sockaddr_in*)rp->ai_addr;
         inet_ntop(AF_INET, &(ipv4->sin_addr), ipstr, sizeof(ipstr));
-        
+
         string var(ipstr);
         retval = "The " + to_string(cnt) + " ip adress is: " + var + ".\n";
         cnt++;
@@ -250,7 +250,7 @@ string PortScanner::ResolveIPtoHost(vector<string> popularports) {
         dwRetval = getnameinfo((struct sockaddr*)&saGNI,
             sizeof(struct sockaddr),
             hostname,
-            NI_MAXHOST, servInfo, NI_MAXSERV, 0); 
+            NI_MAXHOST, servInfo, NI_MAXSERV, 0);
 
         if (dwRetval != 0) {
             continue;
@@ -269,4 +269,6 @@ string PortScanner::ResolveIPtoHost(vector<string> popularports) {
 PortScanner::~PortScanner() {
     WSACleanup();
 }
+
+
 

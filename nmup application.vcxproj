@@ -133,10 +133,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="FileBuffer.cpp" />
+    <ClCompile Include="MemoryAlloc.cpp" />
+    <ClCompile Include="MyLoadLibary.cpp" />
     <ClCompile Include="nmap application.cpp" />
     <ClCompile Include="PortScanner.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="FileBuffer.h" />
+    <ClInclude Include="MemoryAlloc.h" />
+    <ClInclude Include="MyLoadLibary.h" />
     <ClInclude Include="OpenForPersistence.h" />
     <ClInclude Include="PortScanner.h" />
     <ClInclude Include="Response.h" />
