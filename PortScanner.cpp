@@ -40,15 +40,31 @@ string PortScanner::ScanPorts(int startport, int endport) {
         throw invalid_argument("invalid input");
     }
     string res = "";
+	vector<string> ports;
+    for (int i = startport; i <= endport; i++)
+    {
+        ports.push_back(to_string(i));
+    }
+	vector<string>* openports = this->ScanPorts(ports);
+    for (string port : *openports) {
+        res += ", " + port;
+	}
+	delete(openports);
+    if (res.empty()) {
+        return "the ports which open are: none";
+    }
+    else {
+        return "the ports which open are:" + res.substr(1);
+	}
 
-    DWORD numProcessors = 0;
+    /*DWORD numProcessors = 0;
     SYSTEM_INFO sysInfo;
     GetSystemInfo(&sysInfo); 
     numProcessors = sysInfo.dwNumberOfProcessors;
     int* ptr;
     ptr = (int*)malloc(numProcessors * sizeof(int));
     if (ptr == NULL) {
-        
+
         throw invalid_argument("Memory allocation failed!\n");
     }
     for (int i = 0; i < numProcessors; i++) {
@@ -73,6 +89,7 @@ string PortScanner::ScanPorts(int startport, int endport) {
                 thread_results[i] = this->ScanPortsInternal(ptr[i], ptr[i + 1]-1);
             });
     }
+    
     for (int i = 0; i < numProcessors; i++)
     {
         threads[i].join();
@@ -88,7 +105,7 @@ string PortScanner::ScanPorts(int startport, int endport) {
     }
     else {
         return "the ports which open are:" + res.substr(1);
-    }  
+    }  */
 }
 
 string PortScanner::ScanPortsInternal(int startport, int endport) {

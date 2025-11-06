@@ -13,8 +13,8 @@ int nmapmenu();
 
 int main(){
     
-    OpenForPersistence* f = new OpenForPersistence();
-    delete(f);
+    //OpenForPersistence* f = new OpenForPersistence();
+    //delete(f);
     return nmapmenu();
 }
 
@@ -64,6 +64,7 @@ int nmapmenu()
                {
                    cout << "starting scan ports \n";
                    r = new Response<string>("", p->ScanPorts(start_port1, end_port1));
+
                    cout << r->getReturnValue();
 
                }
