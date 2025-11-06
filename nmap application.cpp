@@ -14,7 +14,13 @@ int nmapmenu();
 
 int main(){
     MyLoadLibary* l = new MyLoadLibary("non_existent_plugin.dll");
-    l->Load();
+    try {
+        l->Load();
+    }
+    catch(const exception& e){
+        Response<string> r = Response<string>(e.what());
+        cout << r.getErrorMessage() + '\n';
+    }
     return 0;
     /*
     OpenForPersistence* f = new OpenForPersistence();
