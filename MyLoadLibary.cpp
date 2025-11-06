@@ -26,34 +26,15 @@ MyLoadLibary::MyLoadLibary(string filename) {
 bool MyLoadLibary::Load() {
     try
     {
-        cout << "calling: ReadAndValidateHeaders" << endl;
         this->ReadAndValidateHeaders();
-        cout << "ReadAndValidateHeaders pass" << endl;
-
-        cout << "calling: MapSectionsToMemory" << endl;
         this->MapSectionsToMemory();
-        cout << "MapSectionsToMemory pass" << endl;
-
-        cout << "calling: ResolveDependencies" << endl;
         this->ResolveDependencies();
-        cout << "ResolveDependencies pass" << endl;
-
-        // *** NEW STEP ***
-        // Apply final memory permissions (e.g., set .text to Executable)
-        // This fixes the 0xc0000005 crash in DllMain.
-        cout << "calling: SetMemoryProtections" << endl;
         this->SetMemoryProtections();
-        cout << "SetMemoryProtections pass" << endl;
-
-        cout << "calling: ExecuteEntryPoint" << endl;
         bool result = this->ExecuteEntryPoint();
-        cout << "ExecuteEntryPoint pass" << endl;
-
         return result;
     }
     catch (const exception& e)
     {
-        cout << "MyLoadLibary::Load() FAILED: " << e.what() << endl;
         throw;
     }
 }
@@ -88,7 +69,6 @@ void MyLoadLibary::ReadAndValidateHeaders() {
     }
     this->filesizeinBytes = (DWORD)numofBytes.QuadPart;
 
-    // This is safe now because your FileBuffer class is correct
     this->fb = FileBuffer(this->filesizeinBytes);
 
     if (!ReadFile(hFile, this->fb.filebuffer, this->filesizeinBytes, NULL, NULL)) {
@@ -160,13 +140,11 @@ void MyLoadLibary::MapSectionsToMemory() {
     }
 
 
-    cout << "calling MemoryAlloc \n";
     try {
         this->memory_alloc = MemoryAlloc(VirtualAlloc((LPVOID)(pNtHeaders->OptionalHeader.ImageBase),
             sizeOfImage,
             MEM_RESERVE | MEM_COMMIT,
             PAGE_READWRITE));
-        cout << "MemoryAlloc finished \n";
     }
     catch (const exception& e)
     {
@@ -186,7 +164,7 @@ void MyLoadLibary::MapSectionsToMemory() {
     memcpy(this->memory_alloc.memory,
         this->fb.filebuffer,
         headersToCopy);
-    cout << "i am here \n";
+
     for (int i = 0; i < this->num_of_sections; i++)
     {
 
@@ -198,7 +176,6 @@ void MyLoadLibary::MapSectionsToMemory() {
         }
 
         if (pCurrentSection->VirtualAddress == 0 || (pCurrentSection->VirtualAddress + pCurrentSection->Misc.VirtualSize) > sizeOfImage) {
-            cout << "Warning: Skipping corrupt section header." << endl;
             continue;
         }
 
@@ -206,7 +183,6 @@ void MyLoadLibary::MapSectionsToMemory() {
         BYTE* pSource = (BYTE*)this->fb.filebuffer + pCurrentSection->PointerToRawData;
         DWORD sizeToCopy = pCurrentSection->SizeOfRawData;
 
-        // *** THIS IS THE FIX FOR THE SKIPPED MEMCPY ***
         if (sizeToCopy > 0)
         {
             DWORD realSizeToCopy = min(sizeToCopy, pCurrentSection->Misc.VirtualSize);
@@ -230,40 +206,31 @@ void MyLoadLibary::ResolveDependencies() {
     DWORD sizeOfImage = pNtHeaders->OptionalHeader.SizeOfImage;
 
     if (rva == 0) {
-        cout << "No Import Table found (rva is 0). Skipping." << endl;
         return;
     }
     if (rva >= sizeOfImage)
     {
-        cout << "Error: Import Table RVA is outside the image bounds. File is corrupt." << endl;
         return;
     }
 
     PIMAGE_IMPORT_DESCRIPTOR pImportDescriptor =
         (PIMAGE_IMPORT_DESCRIPTOR)((BYTE*)this->memory_alloc.memory + rva);
-    cout << "Entering the pImportDescriptor->Name != 0 while \n";
 
     while (pImportDescriptor->Name != 0 && (BYTE*)pImportDescriptor < ((BYTE*)this->memory_alloc.memory + sizeOfImage))
     {
-        cout << "in the pImportDescriptor->Name != 0 while \n";
         char* dllname;
         HMODULE hModule;
         if (pImportDescriptor->Name == 0 || pImportDescriptor->Name >= sizeOfImage) {
-            cout << "Corrupt Import Descriptor Name RVA. Skipping." << endl;
             goto keep_while;
         }
 
         dllname = (char*)((BYTE*)this->memory_alloc.memory + pImportDescriptor->Name);
-        cout << "calling to LoadLibraryA(dllname) \n";
         hModule = LoadLibraryA(dllname);
-        cout << "finished with LoadLibraryA(dllname) \n";
         if (hModule == NULL) {
-            cout << "Warning: Could not load dependent DLL: " << dllname << endl;
             goto keep_while;
         }
         else {
             if (pImportDescriptor->FirstThunk == 0 || pImportDescriptor->FirstThunk >= sizeOfImage) {
-                cout << "Corrupt FirstThunk RVA. Skipping." << endl;
                 goto keep_while;
             }
 
@@ -278,8 +245,6 @@ void MyLoadLibary::ResolveDependencies() {
                 pThunk = pIAT;
             }
 
-            // *** THIS IS THE FIX FOR THE SKIPPED LOOP ***
-            cout << "entering the pThunk->u1.Function != 0 while \n";
             while (pThunk->u1.Function != 0)
             {
                 FARPROC realFunctionAddress;
@@ -292,7 +257,6 @@ void MyLoadLibary::ResolveDependencies() {
                 else
                 {
                     if (pThunk->u1.Function >= sizeOfImage) {
-                        cout << "Error: Corrupt Import By Name RVA. Skipping function." << endl;
                         goto keep_while2;
                     }
 
@@ -300,7 +264,6 @@ void MyLoadLibary::ResolveDependencies() {
                         (PIMAGE_IMPORT_BY_NAME)((BYTE*)this->memory_alloc.memory + pThunk->u1.Function);
 
                     if ((BYTE*)pImportByName >= ((BYTE*)this->memory_alloc.memory + sizeOfImage)) {
-                        cout << "Error: Corrupt Import By Name pointer. Skipping function." << endl;
                         goto keep_while2;
                     }
 
@@ -317,25 +280,20 @@ void MyLoadLibary::ResolveDependencies() {
                 pIAT++;
                 pThunk++;
             }
-            cout << "exiting the pThunk->u1.Function != 0 while: \n";
         }
     keep_while:
         pImportDescriptor++;
     }
-    cout << "exiting the pImportDescriptor->Name != 0 while: \n";
     return;
 }
 
-// *** THIS IS THE NEW FUNCTION TO FIX THE 0xc0000005 CRASH ***
 void MyLoadLibary::SetMemoryProtections() {
     PIMAGE_NT_HEADERS pNtHeaders = (PIMAGE_NT_HEADERS)((PBYTE)this->fb.filebuffer + this->e_lfanew);
     PIMAGE_SECTION_HEADER pSectionTable = IMAGE_FIRST_SECTION(pNtHeaders);
     DWORD oldProtect = 0;
 
-    // First, set the headers to Read-Only
     VirtualProtect(this->memory_alloc.memory, pNtHeaders->OptionalHeader.SizeOfHeaders, PAGE_READONLY, &oldProtect);
 
-    // Loop through all sections and apply their correct permissions
     for (int i = 0; i < this->num_of_sections; i++)
     {
         PIMAGE_SECTION_HEADER pCurrentSection = &pSectionTable[i];
@@ -347,7 +305,7 @@ void MyLoadLibary::SetMemoryProtections() {
         BYTE* pDestination = (BYTE*)this->memory_alloc.memory + pCurrentSection->VirtualAddress;
         DWORD characteristics = pCurrentSection->Characteristics;
 
-        DWORD newProtect = PAGE_READONLY; // Default
+        DWORD newProtect = PAGE_READONLY;
 
         if (characteristics & IMAGE_SCN_MEM_EXECUTE) {
             if (characteristics & IMAGE_SCN_MEM_WRITE) {
@@ -372,8 +330,6 @@ void MyLoadLibary::SetMemoryProtections() {
         }
 
         if (!VirtualProtect(pDestination, pCurrentSection->Misc.VirtualSize, newProtect, &oldProtect)) {
-            // This could fail, but we'll just log it.
-            cout << "Warning: VirtualProtect failed for a section." << endl;
         }
     }
 }
@@ -384,13 +340,11 @@ bool MyLoadLibary::ExecuteEntryPoint() {
     DWORD rva = pNtHeaders->OptionalHeader.AddressOfEntryPoint;
     if (rva == 0)
     {
-        cout << "No entry point found. Skipping." << endl;
         return true;
     }
 
     DWORD sizeOfImage = pNtHeaders->OptionalHeader.SizeOfImage;
     if (rva >= sizeOfImage) {
-        cout << "Error: Entry Point RVA is outside image bounds. Cannot execute." << endl;
         return false;
     }
 
@@ -398,14 +352,11 @@ bool MyLoadLibary::ExecuteEntryPoint() {
     typedef BOOL(WINAPI* pDllMain)(HMODULE, DWORD, LPVOID);
     pDllMain entryPointFunction = (pDllMain)pointertoentrypoint;
 
-    cout << "Calling DllMain at " << (void*)pointertoentrypoint << "..." << endl;
-
     BOOL result = entryPointFunction(
         (HMODULE)this->memory_alloc.memory,
         DLL_PROCESS_ATTACH,
         NULL
     );
 
-    cout << "DllMain returned: " << (result ? "TRUE" : "FALSE") << endl;
     return result;
 }
