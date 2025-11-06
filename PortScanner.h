@@ -10,7 +10,7 @@ private:
 	string ip;
 	WSADATA wsaData;
 	string hostname;
-	string ScanPortsInternal(int, int);
+	//string ScanPortsInternal(int, int);
 	vector<string>* ScanPortsInternal(vector<string>);
 public:
 	PortScanner(string );
