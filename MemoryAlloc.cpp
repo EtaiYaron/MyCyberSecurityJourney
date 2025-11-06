@@ -1,23 +1,30 @@
-#include"MemoryAlloc.h"
-#include <stdexcept> 
-
-using namespace std;
-
-
-MemoryAlloc::MemoryAlloc() {
-	// Default constructor logic (if needed)
-}
-
-MemoryAlloc::MemoryAlloc(LPVOID memory) {
-	if (memory == NULL) {
-		throw invalid_argument("VirtualAlloc(MEM_RESERVE) failed or was allocated at a different address.");
-	}
-	this->memory = memory;
-
-}
+#include "MemoryAlloc.h"
+#include <windows.h> // For VirtualFree
 
 MemoryAlloc::~MemoryAlloc() {
-	if (memory != NULL) {
-		VirtualFree(memory, 0, MEM_RELEASE);
-	}
+    if (memory) {
+        VirtualFree(memory, 0, MEM_RELEASE);
+    }
+}
+
+MemoryAlloc::MemoryAlloc(MemoryAlloc&& other) noexcept
+    : memory(other.memory) {
+
+    other.memory = nullptr;
+}
+
+MemoryAlloc& MemoryAlloc::operator=(MemoryAlloc&& other) noexcept {
+    if (this == &other) {
+        return *this;
+    }
+
+    if (memory) {
+        VirtualFree(memory, 0, MEM_RELEASE);
+    }
+
+    this->memory = other.memory;
+
+    other.memory = nullptr;
+
+    return *this;
 }
