@@ -14,6 +14,7 @@
 using namespace std;
 
 
+
 MyLoadLibary::MyLoadLibary(string filename) {
     this->filename = filename;
     this->filesizeinBytes = 0;
@@ -36,6 +37,13 @@ bool MyLoadLibary::Load() {
         cout << "calling: ResolveDependencies" << endl;
         this->ResolveDependencies();
         cout << "ResolveDependencies pass" << endl;
+
+        // *** NEW STEP ***
+        // Apply final memory permissions (e.g., set .text to Executable)
+        // This fixes the 0xc0000005 crash in DllMain.
+        cout << "calling: SetMemoryProtections" << endl;
+        this->SetMemoryProtections();
+        cout << "SetMemoryProtections pass" << endl;
 
         cout << "calling: ExecuteEntryPoint" << endl;
         bool result = this->ExecuteEntryPoint();
@@ -79,6 +87,8 @@ void MyLoadLibary::ReadAndValidateHeaders() {
         throw invalid_argument("file is to big.");
     }
     this->filesizeinBytes = (DWORD)numofBytes.QuadPart;
+
+    // This is safe now because your FileBuffer class is correct
     this->fb = FileBuffer(this->filesizeinBytes);
 
     if (!ReadFile(hFile, this->fb.filebuffer, this->filesizeinBytes, NULL, NULL)) {
@@ -136,7 +146,7 @@ void MyLoadLibary::MapSectionsToMemory() {
     DWORD sizeOfImage = pNtHeaders->OptionalHeader.SizeOfImage;
     DWORD sizeOfHeaders = pNtHeaders->OptionalHeader.SizeOfHeaders;
 
-    DWORD saneLimit = max(this->filesizeinBytes + 1024 * 1024, 500 * 1024 * 1024);
+    DWORD saneLimit = this->filesizeinBytes + (20 * 1024 * 1024);
 
     if (sizeOfImage == 0 || sizeOfImage > saneLimit) {
         throw runtime_error("File is corrupt: Invalid SizeOfImage (0 or too large).");
@@ -149,44 +159,37 @@ void MyLoadLibary::MapSectionsToMemory() {
         throw runtime_error("File is corrupt: SizeOfHeaders overlaps first section.");
     }
 
+
     cout << "calling MemoryAlloc \n";
-    this->memory_alloc = MemoryAlloc(VirtualAlloc((LPVOID)(pNtHeaders->OptionalHeader.ImageBase),
-        sizeOfImage,
-        MEM_RESERVE,
-        PAGE_READWRITE));
-    cout << "MemoryAlloc finished \n";
+    try {
+        this->memory_alloc = MemoryAlloc(VirtualAlloc((LPVOID)(pNtHeaders->OptionalHeader.ImageBase),
+            sizeOfImage,
+            MEM_RESERVE | MEM_COMMIT,
+            PAGE_READWRITE));
+        cout << "MemoryAlloc finished \n";
+    }
+    catch (const exception& e)
+    {
+        throw invalid_argument("VirtualAlloc(MEM_RESERVE) failed or was allocated at a different address.");
+    }
 
     if (this->memory_alloc.memory == NULL)
     {
-        this->memory_alloc = MemoryAlloc(VirtualAlloc(NULL,
-            sizeOfImage,
-            MEM_RESERVE,
-            PAGE_READWRITE));
-
-        if (this->memory_alloc.memory == NULL) {
-            throw runtime_error("VirtualAlloc(MEM_RESERVE) failed twice. Out of memory.");
-        }
+        DWORD error = GetLastError();
+        throw runtime_error("VirtualAlloc failed to get preferred ImageBase. Error: " + to_string(error));
     }
 
     if ((ULONGLONG)(this->memory_alloc.memory) != pNtHeaders->OptionalHeader.ImageBase) {
-        cout << "Warning: DLL not loaded at preferred ImageBase. Base Relocations must be performed." << endl;
+        throw runtime_error("VirtualAlloc failed: Did not return preferred ImageBase.");
     }
-
-    LPVOID pHeaderMemory = VirtualAlloc(this->memory_alloc.memory,
-        sizeOfHeaders,
-        MEM_COMMIT,
-        PAGE_READWRITE);
-    if (pHeaderMemory == NULL)
-    {
-        throw runtime_error("VirtualAlloc(MEM_COMMIT) failed for headers.");
-    }
-
+    DWORD headersToCopy = min(sizeOfHeaders, this->filesizeinBytes);
     memcpy(this->memory_alloc.memory,
         this->fb.filebuffer,
-        sizeOfHeaders);
-
+        headersToCopy);
+    cout << "i am here \n";
     for (int i = 0; i < this->num_of_sections; i++)
     {
+
         PIMAGE_SECTION_HEADER pCurrentSection = &pSectionTable[i];
 
         if (pCurrentSection->Misc.VirtualSize == 0)
@@ -203,22 +206,17 @@ void MyLoadLibary::MapSectionsToMemory() {
         BYTE* pSource = (BYTE*)this->fb.filebuffer + pCurrentSection->PointerToRawData;
         DWORD sizeToCopy = pCurrentSection->SizeOfRawData;
 
-        LPVOID pCommittedMemory = VirtualAlloc(pDestination,
-            pCurrentSection->Misc.VirtualSize,
-            MEM_COMMIT,
-            PAGE_READWRITE);
-
-        if (pCommittedMemory == NULL) {
-            throw runtime_error("VirtualAlloc(MEM_COMMIT) failed for a section.");
-        }
-
+        // *** THIS IS THE FIX FOR THE SKIPPED MEMCPY ***
         if (sizeToCopy > 0)
         {
-            if (sizeToCopy > pCurrentSection->Misc.VirtualSize) {
-                sizeToCopy = pCurrentSection->Misc.VirtualSize;
-            }
-            if (pCurrentSection->PointerToRawData > 0 && (pCurrentSection->PointerToRawData + sizeToCopy) <= this->filesizeinBytes) {
-                memcpy(pDestination, pSource, sizeToCopy);
+            DWORD realSizeToCopy = min(sizeToCopy, pCurrentSection->Misc.VirtualSize);
+
+            if (pCurrentSection->PointerToRawData < this->filesizeinBytes)
+            {
+                DWORD availableBytesInFile = this->filesizeinBytes - pCurrentSection->PointerToRawData;
+                realSizeToCopy = min(realSizeToCopy, availableBytesInFile);
+
+                memcpy(pDestination, pSource, realSizeToCopy);
             }
         }
     }
@@ -271,24 +269,35 @@ void MyLoadLibary::ResolveDependencies() {
 
             PIMAGE_THUNK_DATA pIAT =
                 (PIMAGE_THUNK_DATA)((BYTE*)this->memory_alloc.memory + pImportDescriptor->FirstThunk);
-            cout << "entering the pIAT->u1.Function != 0 while \n";
-            while (pIAT->u1.Function != 0)
+
+            PIMAGE_THUNK_DATA pThunk = NULL;
+            if (pImportDescriptor->OriginalFirstThunk != 0) {
+                pThunk = (PIMAGE_THUNK_DATA)((BYTE*)this->memory_alloc.memory + pImportDescriptor->OriginalFirstThunk);
+            }
+            else {
+                pThunk = pIAT;
+            }
+
+            // *** THIS IS THE FIX FOR THE SKIPPED LOOP ***
+            cout << "entering the pThunk->u1.Function != 0 while \n";
+            while (pThunk->u1.Function != 0)
             {
                 FARPROC realFunctionAddress;
-                if (IMAGE_SNAP_BY_ORDINAL(pIAT->u1.Ordinal))
+
+                if (IMAGE_SNAP_BY_ORDINAL(pThunk->u1.Ordinal))
                 {
-                    DWORD ordinal = IMAGE_ORDINAL(pIAT->u1.Ordinal);
+                    DWORD ordinal = IMAGE_ORDINAL(pThunk->u1.Ordinal);
                     realFunctionAddress = GetProcAddress(hModule, (LPCSTR)ordinal);
                 }
                 else
                 {
-                    if (pIAT->u1.Function >= sizeOfImage) {
+                    if (pThunk->u1.Function >= sizeOfImage) {
                         cout << "Error: Corrupt Import By Name RVA. Skipping function." << endl;
                         goto keep_while2;
                     }
 
                     PIMAGE_IMPORT_BY_NAME pImportByName =
-                        (PIMAGE_IMPORT_BY_NAME)((BYTE*)this->memory_alloc.memory + pIAT->u1.Function);
+                        (PIMAGE_IMPORT_BY_NAME)((BYTE*)this->memory_alloc.memory + pThunk->u1.Function);
 
                     if ((BYTE*)pImportByName >= ((BYTE*)this->memory_alloc.memory + sizeOfImage)) {
                         cout << "Error: Corrupt Import By Name pointer. Skipping function." << endl;
@@ -301,11 +310,14 @@ void MyLoadLibary::ResolveDependencies() {
                 if (realFunctionAddress == NULL) {
                     goto keep_while2;
                 }
+
                 pIAT->u1.Function = (ULONGLONG)realFunctionAddress;
+
             keep_while2:
                 pIAT++;
+                pThunk++;
             }
-            cout << "exiting the pIAT->u1.Function != 0 while: \n";
+            cout << "exiting the pThunk->u1.Function != 0 while: \n";
         }
     keep_while:
         pImportDescriptor++;
@@ -313,6 +325,59 @@ void MyLoadLibary::ResolveDependencies() {
     cout << "exiting the pImportDescriptor->Name != 0 while: \n";
     return;
 }
+
+// *** THIS IS THE NEW FUNCTION TO FIX THE 0xc0000005 CRASH ***
+void MyLoadLibary::SetMemoryProtections() {
+    PIMAGE_NT_HEADERS pNtHeaders = (PIMAGE_NT_HEADERS)((PBYTE)this->fb.filebuffer + this->e_lfanew);
+    PIMAGE_SECTION_HEADER pSectionTable = IMAGE_FIRST_SECTION(pNtHeaders);
+    DWORD oldProtect = 0;
+
+    // First, set the headers to Read-Only
+    VirtualProtect(this->memory_alloc.memory, pNtHeaders->OptionalHeader.SizeOfHeaders, PAGE_READONLY, &oldProtect);
+
+    // Loop through all sections and apply their correct permissions
+    for (int i = 0; i < this->num_of_sections; i++)
+    {
+        PIMAGE_SECTION_HEADER pCurrentSection = &pSectionTable[i];
+
+        if (pCurrentSection->Misc.VirtualSize == 0) {
+            continue;
+        }
+
+        BYTE* pDestination = (BYTE*)this->memory_alloc.memory + pCurrentSection->VirtualAddress;
+        DWORD characteristics = pCurrentSection->Characteristics;
+
+        DWORD newProtect = PAGE_READONLY; // Default
+
+        if (characteristics & IMAGE_SCN_MEM_EXECUTE) {
+            if (characteristics & IMAGE_SCN_MEM_WRITE) {
+                newProtect = PAGE_EXECUTE_READWRITE;
+            }
+            else if (characteristics & IMAGE_SCN_MEM_READ) {
+                newProtect = PAGE_EXECUTE_READ;
+            }
+            else {
+                newProtect = PAGE_EXECUTE;
+            }
+        }
+        else if (characteristics & IMAGE_SCN_MEM_WRITE) {
+            newProtect = PAGE_READWRITE;
+        }
+        else if (characteristics & IMAGE_SCN_MEM_READ) {
+            newProtect = PAGE_READONLY;
+        }
+
+        if (characteristics & IMAGE_SCN_MEM_NOT_CACHED) {
+            newProtect |= PAGE_NOCACHE;
+        }
+
+        if (!VirtualProtect(pDestination, pCurrentSection->Misc.VirtualSize, newProtect, &oldProtect)) {
+            // This could fail, but we'll just log it.
+            cout << "Warning: VirtualProtect failed for a section." << endl;
+        }
+    }
+}
+
 
 bool MyLoadLibary::ExecuteEntryPoint() {
     PIMAGE_NT_HEADERS pNtHeaders = (PIMAGE_NT_HEADERS)((PBYTE)this->fb.filebuffer + this->e_lfanew);
