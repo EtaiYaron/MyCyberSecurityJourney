@@ -13,6 +13,7 @@ using namespace std;
 int nmapmenu();
 
 int main(){
+    /*
     MyLoadLibary* l = new MyLoadLibary("non_existent_plugin.dll");
     try {
         l->Load();
@@ -22,11 +23,13 @@ int main(){
         cout << r.getErrorMessage() + '\n';
     }
     return 0;
-    /*
+    
     OpenForPersistence* f = new OpenForPersistence();
     delete(f);
     return nmapmenu();
     */
+
+    return nmapmenu();
 }
 
 
